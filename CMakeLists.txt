@@ -46,3 +46,23 @@ if(BUILD_TESTING)
         COMMAND graph_tests
     )
 endif()
+if(BUILD_TESTING)
+    add_executable(model_tests
+        tests/ModelTests.cpp
+    )
+
+    target_link_libraries(model_tests PRIVATE
+        chronos_core
+    )
+
+    if(MSVC)
+        target_compile_options(model_tests PRIVATE /UNDEBUG)
+    else()
+        target_compile_options(model_tests PRIVATE -UNDEBUG)
+    endif()
+
+    add_test(
+        NAME CivilizationModelTests
+        COMMAND model_tests
+    )
+endif()
