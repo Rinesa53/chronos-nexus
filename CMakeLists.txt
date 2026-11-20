@@ -66,3 +66,23 @@ if(BUILD_TESTING)
         COMMAND model_tests
     )
 endif()
+if(BUILD_TESTING)
+    add_executable(mission_tests
+        tests/MissionTests.cpp
+    )
+
+    target_link_libraries(mission_tests PRIVATE
+        chronos_core
+    )
+
+    if(MSVC)
+        target_compile_options(mission_tests PRIVATE /UNDEBUG)
+    else()
+        target_compile_options(mission_tests PRIVATE -UNDEBUG)
+    endif()
+
+    add_test(
+        NAME MissionFeasibilityTests
+        COMMAND mission_tests
+    )
+endif()
