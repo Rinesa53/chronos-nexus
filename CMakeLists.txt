@@ -126,3 +126,23 @@ if(BUILD_TESTING)
         COMMAND prediction_tests
     )
 endif()
+if(BUILD_TESTING)
+    add_executable(infrastructure_tests
+        tests/InfrastructureTests.cpp
+    )
+
+    target_link_libraries(infrastructure_tests PRIVATE
+        chronos_core
+    )
+
+    if(MSVC)
+        target_compile_options(infrastructure_tests PRIVATE /UNDEBUG)
+    else()
+        target_compile_options(infrastructure_tests PRIVATE -UNDEBUG)
+    endif()
+
+    add_test(
+        NAME InfrastructureOptimizationTests
+        COMMAND infrastructure_tests
+    )
+endif()
