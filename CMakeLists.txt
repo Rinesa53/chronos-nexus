@@ -106,3 +106,23 @@ if(BUILD_TESTING)
         COMMAND scheduler_tests
     )
 endif()
+if(BUILD_TESTING)
+    add_executable(prediction_tests
+        tests/PredictionTests.cpp
+    )
+
+    target_link_libraries(prediction_tests PRIVATE
+        chronos_core
+    )
+
+    if(MSVC)
+        target_compile_options(prediction_tests PRIVATE /UNDEBUG)
+    else()
+        target_compile_options(prediction_tests PRIVATE -UNDEBUG)
+    endif()
+
+    add_test(
+        NAME ResourcePredictionTests
+        COMMAND prediction_tests
+    )
+endif()
