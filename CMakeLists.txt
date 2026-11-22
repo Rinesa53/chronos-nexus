@@ -86,3 +86,23 @@ if(BUILD_TESTING)
         COMMAND mission_tests
     )
 endif()
+if(BUILD_TESTING)
+    add_executable(scheduler_tests
+        tests/SchedulerTests.cpp
+    )
+
+    target_link_libraries(scheduler_tests PRIVATE
+        chronos_core
+    )
+
+    if(MSVC)
+        target_compile_options(scheduler_tests PRIVATE /UNDEBUG)
+    else()
+        target_compile_options(scheduler_tests PRIVATE -UNDEBUG)
+    endif()
+
+    add_test(
+        NAME MissionSchedulerTests
+        COMMAND scheduler_tests
+    )
+endif()
