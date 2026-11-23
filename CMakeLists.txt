@@ -194,3 +194,27 @@ if(BUILD_TESTING)
         COMMAND constrained_routing_tests
     )
 endif()
+if(BUILD_TESTING)
+    add_executable(routing_integration_tests
+        tests/RoutingIntegrationTests.cpp
+    )
+
+    target_link_libraries(routing_integration_tests PRIVATE
+        chronos_core
+    )
+
+    if(MSVC)
+        target_compile_options(
+            routing_integration_tests PRIVATE /UNDEBUG
+        )
+    else()
+        target_compile_options(
+            routing_integration_tests PRIVATE -UNDEBUG
+        )
+    endif()
+
+    add_test(
+        NAME RoutingIntegrationTests
+        COMMAND routing_integration_tests
+    )
+endif()

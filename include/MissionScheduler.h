@@ -231,7 +231,7 @@ public:
                     currentTime,
                     config.weights,
                     config.minimumReliability,
-                    confing.routing
+                    config.routing
                 );
 
                 if (!evaluation.feasible ||
