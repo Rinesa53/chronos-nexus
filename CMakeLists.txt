@@ -146,3 +146,27 @@ if(BUILD_TESTING)
         COMMAND infrastructure_tests
     )
 endif()
+if(BUILD_TESTING)
+    add_executable(preventive_supply_tests
+        tests/PreventiveSupplyTests.cpp
+    )
+
+    target_link_libraries(preventive_supply_tests PRIVATE
+        chronos_core
+    )
+
+    if(MSVC)
+        target_compile_options(
+            preventive_supply_tests PRIVATE /UNDEBUG
+        )
+    else()
+        target_compile_options(
+            preventive_supply_tests PRIVATE -UNDEBUG
+        )
+    endif()
+
+    add_test(
+        NAME PreventiveSupplyTests
+        COMMAND preventive_supply_tests
+    )
+endif()
