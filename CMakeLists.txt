@@ -170,3 +170,27 @@ if(BUILD_TESTING)
         COMMAND preventive_supply_tests
     )
 endif()
+if(BUILD_TESTING)
+    add_executable(constrained_routing_tests
+        tests/ConstrainedRoutingTests.cpp
+    )
+
+    target_link_libraries(constrained_routing_tests PRIVATE
+        chronos_core
+    )
+
+    if(MSVC)
+        target_compile_options(
+            constrained_routing_tests PRIVATE /UNDEBUG
+        )
+    else()
+        target_compile_options(
+            constrained_routing_tests PRIVATE -UNDEBUG
+        )
+    endif()
+
+    add_test(
+        NAME ConstrainedRoutingTests
+        COMMAND constrained_routing_tests
+    )
+endif()
