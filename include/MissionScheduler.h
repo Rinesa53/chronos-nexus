@@ -17,6 +17,7 @@ namespace chronos {
 
 struct SchedulerConfig {
     RouteWeights weights;
+    RoutingOptions routing;
     double minimumReliability = 0.0;
     std::size_t maxCandidateChecks = 100000;
 };
@@ -229,7 +230,8 @@ public:
                     *mission,
                     currentTime,
                     config.weights,
-                    config.minimumReliability
+                    config.minimumReliability,
+                    confing.routing
                 );
 
                 if (!evaluation.feasible ||
