@@ -13,6 +13,7 @@
 #include <unordered_map>
 #include <utility>
 #include <vector>
+#include "RouteReservations.h"
 
 namespace chronos {
 
@@ -25,6 +26,8 @@ struct ConstrainedRouteRequest {
     double minimumReliability = 0.0;
 
     RouteWeights weights;
+
+    const RouteReservations* reservedCargo = nullptr;
 
     std::size_t maxStates = 10000;
     std::size_t maxLabelsPerNode = 16;
@@ -242,11 +245,14 @@ public:
             for (const auto& edge :
                  galaxy.getNeighbors(current.node)) {
                 if (!edge.available ||
-                    edge.capacity < request.cargoAmount ||
-                    edge.reliability == 0.0) {
-                    ++result.candidatesPruned;
-                    continue;
-                }
+    availableRouteCapacity(
+        edge,
+        request.reservedCargo
+    ) < request.cargoAmount ||
+    edge.reliability == 0.0) {
+    ++result.candidatesPruned;
+    continue;
+}
 
                 double dt =
                     edge.travelTime / ship.speed;

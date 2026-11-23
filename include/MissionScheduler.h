@@ -168,6 +168,9 @@ public:
         std::set<int> usedShips;
         Reservations reserved;
 
+if (config.routing.reservedCargo != nullptr) {
+    reserved = *config.routing.reservedCargo;
+}
         std::map<
             std::pair<int, std::string>,
             double
@@ -224,6 +227,9 @@ public:
 
                 ++result.candidateChecks;
 
+                RoutingOptions routing = config.routing;
+                routing.reservedCargo = &reserved;
+
                 auto evaluation = MissionEvaluator::evaluate(
                     galaxy,
                     ship,
@@ -231,7 +237,7 @@ public:
                     currentTime,
                     config.weights,
                     config.minimumReliability,
-                    config.routing
+                    routing
                 );
 
                 if (!evaluation.feasible ||

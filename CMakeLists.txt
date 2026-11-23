@@ -218,3 +218,27 @@ if(BUILD_TESTING)
         COMMAND routing_integration_tests
     )
 endif()
+if(BUILD_TESTING)
+    add_executable(capacity_routing_tests
+        tests/CapacityRoutingTests.cpp
+    )
+
+    target_link_libraries(capacity_routing_tests PRIVATE
+        chronos_core
+    )
+
+    if(MSVC)
+        target_compile_options(
+            capacity_routing_tests PRIVATE /UNDEBUG
+        )
+    else()
+        target_compile_options(
+            capacity_routing_tests PRIVATE -UNDEBUG
+        )
+    endif()
+
+    add_test(
+        NAME CapacityRoutingTests
+        COMMAND capacity_routing_tests
+    )
+endif()

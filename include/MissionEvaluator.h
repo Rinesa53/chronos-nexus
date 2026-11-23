@@ -19,7 +19,7 @@ enum class RoutingMode {
 
 struct RoutingOptions {
     RoutingMode mode = RoutingMode::Constrained;
-
+const RouteReservations* reservedCargo = nullptr;
     std::size_t maxStates = 10000;
     std::size_t maxLabelsPerNode = 16;
     std::size_t maxLabelsCreated = 100000;
@@ -156,6 +156,8 @@ public:
 
             request.weights = weights;
 
+            request.reservedCargo = routing.reservedCargo;
+
             request.maxStates = routing.maxStates;
 
             request.maxLabelsPerNode =
@@ -262,12 +264,15 @@ public:
             }
 
             if (!edge->available ||
-                mission.cargoAmount > edge->capacity) {
-                result.reason =
-                    "Selected route is unavailable or lacks capacity";
+    mission.cargoAmount > availableRouteCapacity(
+        *edge,
+        routing.reservedCargo
+    )) {
+    result.reason =
+        "Selected route is unavailable or lacks capacity";
 
-                return result;
-            }
+    return result;
+}
 
             routeReliability *= edge->reliability;
         }
