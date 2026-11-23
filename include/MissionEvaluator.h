@@ -1,15 +1,29 @@
 #pragma once
 
-#include "Dijkstra.h"
+#include "ConstrainedRouter.h"
 #include "Mission.h"
 #include "Spacecraft.h"
 
 #include <algorithm>
 #include <cmath>
+#include <cstddef>
 #include <stdexcept>
 #include <string>
 
 namespace chronos {
+
+enum class RoutingMode {
+    Constrained,
+    WeightedDijkstra
+};
+
+struct RoutingOptions {
+    RoutingMode mode = RoutingMode::Constrained;
+
+    std::size_t maxStates = 10000;
+    std::size_t maxLabelsPerNode = 16;
+    std::size_t maxLabelsCreated = 100000;
+};
 
 struct MissionEvaluation {
     bool feasible = false;
@@ -20,6 +34,14 @@ struct MissionEvaluation {
     double combinedReliability = 0.0;
 
     PathResult route;
+
+    bool routeOptimal = false;
+    bool routingBudgetExhausted = false;
+    bool routingLabelsPruned = false;
+
+    std::size_t routingStatesExplored = 0;
+    std::size_t routingLabelsCreated = 0;
+    std::size_t routingCandidatesPruned = 0;
 };
 
 class MissionEvaluator {
@@ -30,24 +52,36 @@ public:
         const Mission& mission,
         double currentTime,
         const RouteWeights& weights = RouteWeights{},
-        double minimumReliability = 0.0
+        double minimumReliability = 0.0,
+        const RoutingOptions& routing = RoutingOptions{}
     ) {
         ship.validate(galaxy);
         mission.validate(galaxy);
 
         if (!std::isfinite(currentTime) ||
-            currentTime < 0.0) {
+            currentTime < 0.0 ||
+            !std::isfinite(minimumReliability) ||
+            minimumReliability < 0.0 ||
+            minimumReliability > 1.0 ||
+            routing.maxStates == 0 ||
+            routing.maxLabelsPerNode == 0 ||
+            routing.maxLabelsCreated == 0) {
             throw std::invalid_argument(
-                "Current time must be finite and non-negative"
+                "Invalid mission evaluation parameters"
             );
         }
 
-        if (!std::isfinite(minimumReliability) ||
-            minimumReliability < 0.0 ||
-            minimumReliability > 1.0) {
-            throw std::invalid_argument(
-                "Minimum reliability must be between 0 and 1"
-            );
+        for (double weight : {
+            weights.distance,
+            weights.fuel,
+            weights.time,
+            weights.risk
+        }) {
+            if (!std::isfinite(weight) || weight < 0.0) {
+                throw std::invalid_argument(
+                    "Invalid mission route weights"
+                );
+            }
         }
 
         MissionEvaluation result;
@@ -58,19 +92,23 @@ public:
         }
 
         if (!ship.operational) {
-            result.reason = "Spacecraft is not operational";
+            result.reason =
+                "Spacecraft is not operational";
+
             return result;
         }
 
         if (ship.currentLocation != mission.origin) {
             result.reason =
                 "Spacecraft is not at the mission origin";
+
             return result;
         }
 
         if (mission.cargoAmount > ship.cargoCapacity) {
             result.reason =
                 "Insufficient spacecraft cargo capacity";
+
             return result;
         }
 
@@ -84,7 +122,9 @@ public:
 
             if (found == ship.capabilities.end()) {
                 result.reason =
-                    "Missing required capability: " + required;
+                    "Missing required capability: " +
+                    required;
+
                 return result;
             }
         }
@@ -97,38 +137,91 @@ public:
         if (result.departureTime > mission.deadline) {
             result.reason =
                 "Spacecraft becomes available after the deadline";
+
             return result;
         }
 
-        // Route times are reference times.
-        // Actual time for this spacecraft is time / speed.
-        RouteWeights adjustedWeights = weights;
-        adjustedWeights.time /= ship.speed;
+        if (routing.mode == RoutingMode::Constrained) {
+            ConstrainedRouteRequest request;
 
-        result.route = Dijkstra::findShortestPath(
-            galaxy,
-            mission.origin,
-            mission.destination,
-            adjustedWeights
-        );
+            request.origin = mission.origin;
+            request.destination = mission.destination;
+            request.cargoAmount = mission.cargoAmount;
+
+            request.timeLimit =
+                mission.deadline - result.departureTime;
+
+            request.minimumReliability =
+                minimumReliability;
+
+            request.weights = weights;
+
+            request.maxStates = routing.maxStates;
+
+            request.maxLabelsPerNode =
+                routing.maxLabelsPerNode;
+
+            request.maxLabelsCreated =
+                routing.maxLabelsCreated;
+
+            auto search = ConstrainedRouter::find(
+                galaxy,
+                ship,
+                request
+            );
+
+            result.route = search.path;
+            result.routeOptimal = search.optimal;
+
+            result.routingBudgetExhausted =
+                search.budgetExhausted;
+
+            result.routingLabelsPruned =
+                search.labelsPruned;
+
+            result.routingStatesExplored =
+                search.statesExplored;
+
+            result.routingLabelsCreated =
+                search.labelsCreated;
+
+            result.routingCandidatesPruned =
+                search.candidatesPruned;
+        } else {
+            RouteWeights adjustedWeights = weights;
+            adjustedWeights.time /= ship.speed;
+
+            result.route = Dijkstra::findShortestPath(
+                galaxy,
+                mission.origin,
+                mission.destination,
+                adjustedWeights
+            );
+
+            result.route.totalTime /= ship.speed;
+
+            result.routingStatesExplored =
+                result.route.exploredNodes;
+        }
 
         if (!result.route.found) {
-            result.reason = "No available route";
+            result.reason =
+                result.routingBudgetExhausted ||
+                result.routingLabelsPruned
+                    ? "No feasible route found within search limits"
+                    : "No feasible route";
+
             return result;
         }
 
-        result.route.totalTime /= ship.speed;
-
         result.arrivalTime =
-            result.departureTime + result.route.totalTime;
-
-        result.combinedReliability =
-            ship.reliability *
-            result.route.totalReliability;
+            result.departureTime +
+            result.route.totalTime;
 
         if (result.route.totalFuel > ship.currentFuel) {
             result.reason =
                 "Insufficient fuel for the selected route";
+
             return result;
         }
 
@@ -136,11 +229,15 @@ public:
             result.arrivalTime > mission.deadline) {
             result.reason =
                 "Selected route misses the mission deadline";
+
             return result;
         }
 
-        // The current Galaxy model permits only one route
-        // for each ordered pair of planets.
+        // Keep the original MissionEvaluation convention:
+        // route.totalReliability includes edges only.
+        // combinedReliability includes the spacecraft too.
+        double routeReliability = 1.0;
+
         for (std::size_t i = 1;
              i < result.route.path.size();
              ++i) {
@@ -153,8 +250,8 @@ public:
             auto edge = std::find_if(
                 neighbors.begin(),
                 neighbors.end(),
-                [to](const Route& route) {
-                    return route.to == to;
+                [to](const Route& e) {
+                    return e.to == to;
                 }
             );
 
@@ -164,18 +261,36 @@ public:
                 );
             }
 
-            if (mission.cargoAmount > edge->capacity) {
+            if (!edge->available ||
+                mission.cargoAmount > edge->capacity) {
                 result.reason =
-                    "Insufficient capacity on the selected route";
+                    "Selected route is unavailable or lacks capacity";
+
                 return result;
             }
+
+            routeReliability *= edge->reliability;
         }
+
+        result.route.totalReliability =
+            routeReliability;
+
+        result.combinedReliability =
+            ship.reliability * routeReliability;
 
         if (result.combinedReliability <
             minimumReliability) {
             result.reason =
                 "Selected route does not meet reliability threshold";
+
             return result;
+        }
+
+        // If the unconstrained cheapest route satisfies
+        // every checked constraint, it is also cheapest
+        // among the feasible routes for this query.
+        if (routing.mode == RoutingMode::WeightedDijkstra) {
+            result.routeOptimal = true;
         }
 
         result.feasible = true;
