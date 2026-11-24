@@ -242,3 +242,27 @@ if(BUILD_TESTING)
         COMMAND capacity_routing_tests
     )
 endif()
+if(BUILD_TESTING)
+    add_executable(preventive_routing_tests
+        tests/PreventiveRoutingTests.cpp
+    )
+
+    target_link_libraries(preventive_routing_tests PRIVATE
+        chronos_core
+    )
+
+    if(MSVC)
+        target_compile_options(
+            preventive_routing_tests PRIVATE /UNDEBUG
+        )
+    else()
+        target_compile_options(
+            preventive_routing_tests PRIVATE -UNDEBUG
+        )
+    endif()
+
+    add_test(
+        NAME PreventiveRoutingTests
+        COMMAND preventive_routing_tests
+    )
+endif()

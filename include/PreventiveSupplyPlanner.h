@@ -27,16 +27,53 @@ struct SupplyRequest {
     double minimumReliability = 0.0;
 
     RouteWeights weights;
+    RoutingOptions routing;
+
     std::size_t maxCandidateChecks = 1000;
+    std::size_t maxCargoRepairs = 3;
 };
 
 struct SupplyProposal {
     std::optional<Mission> mission;
     std::string reason;
+
     std::size_t candidateChecks = 0;
+    std::size_t routingStatesExplored = 0;
+
+    bool routingBudgetExhausted = false;
+    bool routingLabelsPruned = false;
 };
 
 class PreventiveSupplyPlanner {
+    static double roomAtArrival(
+        const Planet& destination,
+        const SupplyRequest& request,
+        double arrival,
+        double incoming
+    ) {
+        auto forecast = ResourcePredictor::predict(
+            destination,
+            request.resource,
+            arrival - request.currentTime
+        );
+
+        auto entry = destination.storageCapacity.find(
+            request.resource
+        );
+
+        double capacity =
+            entry == destination.storageCapacity.end()
+                ? 0.0
+                : entry->second;
+
+        return std::max(
+            0.0,
+            capacity -
+            forecast.stockAtHorizon -
+            incoming
+        );
+    }
+
 public:
     static SupplyProposal propose(
         const Galaxy& galaxy,
@@ -55,7 +92,11 @@ public:
             !std::isfinite(request.minimumReliability) ||
             request.minimumReliability < 0.0 ||
             request.minimumReliability > 1.0 ||
-            request.maxCandidateChecks == 0) {
+            request.maxCandidateChecks == 0 ||
+            request.maxCargoRepairs == 0 ||
+            request.routing.maxStates == 0 ||
+            request.routing.maxLabelsPerNode == 0 ||
+            request.routing.maxLabelsCreated == 0) {
             throw std::invalid_argument(
                 "Invalid preventive supply request"
             );
@@ -223,15 +264,6 @@ public:
             return result;
         }
 
-        double capacity =
-            destination.storageCapacity.contains(
-                request.resource
-            )
-                ? destination.storageCapacity.at(
-                    request.resource
-                )
-                : 0.0;
-
         for (const Spacecraft* ship : candidates) {
             if (result.candidateChecks >=
                 request.maxCandidateChecks) {
@@ -243,42 +275,70 @@ public:
 
             ++result.candidateChecks;
 
-            RouteWeights weights = request.weights;
-            weights.time /= ship->speed;
-
-            auto route = Dijkstra::findShortestPath(
-                galaxy,
-                request.source,
-                request.destination,
-                weights
+            double departure = std::max(
+                request.currentTime,
+                ship->availabilityTime
             );
 
-            if (!route.found) {
+            if (departure > deadline) {
+                continue;
+            }
+
+            // Search for a corridor before deciding
+            // the real cargo amount.
+            ConstrainedRouteRequest probe;
+
+            probe.origin = request.source;
+            probe.destination = request.destination;
+
+            probe.cargoAmount = 0.0;
+            probe.requirePositiveCapacity = true;
+
+            probe.timeLimit = deadline - departure;
+
+            probe.minimumReliability =
+                request.minimumReliability;
+
+            probe.weights = request.weights;
+
+            probe.reservedCargo =
+                request.routing.reservedCargo;
+
+            probe.maxStates =
+                request.routing.maxStates;
+
+            probe.maxLabelsPerNode =
+                request.routing.maxLabelsPerNode;
+
+            probe.maxLabelsCreated =
+                request.routing.maxLabelsCreated;
+
+            auto search = ConstrainedRouter::find(
+                galaxy,
+                *ship,
+                probe
+            );
+
+            result.routingStatesExplored +=
+                search.statesExplored;
+
+            result.routingBudgetExhausted |=
+                search.budgetExhausted;
+
+            result.routingLabelsPruned |=
+                search.labelsPruned;
+
+            if (!search.path.found) {
                 continue;
             }
 
             double arrival =
-                std::max(
-                    request.currentTime,
-                    ship->availabilityTime
-                ) +
-                route.totalTime / ship->speed;
+                departure + search.path.totalTime;
 
-            if (!std::isfinite(arrival) ||
-                arrival > deadline) {
-                continue;
-            }
-
-            auto atArrival = ResourcePredictor::predict(
+            double room = roomAtArrival(
                 destination,
-                request.resource,
-                arrival - request.currentTime
-            );
-
-            double room = std::max(
-                0.0,
-                capacity -
-                atArrival.stockAtHorizon -
+                request,
+                arrival,
                 incoming
             );
 
@@ -289,14 +349,15 @@ public:
                 room
             });
 
-            for (std::size_t i = 1;
-                 i < route.path.size();
-                 ++i) {
-                const auto& edges = galaxy.getNeighbors(
-                    route.path[i - 1]
-                );
+            const auto& path = search.path.path;
 
-                int target = route.path[i];
+            for (std::size_t i = 1;
+                 i < path.size();
+                 ++i) {
+                const auto& edges =
+                    galaxy.getNeighbors(path[i - 1]);
+
+                int target = path[i];
 
                 auto edge = std::find_if(
                     edges.begin(),
@@ -314,7 +375,10 @@ public:
 
                 quantity = std::min(
                     quantity,
-                    edge->capacity
+                    availableRouteCapacity(
+                        *edge,
+                        request.routing.reservedCargo
+                    )
                 );
             }
 
@@ -329,8 +393,6 @@ public:
             mission.destination = request.destination;
 
             mission.cargoType = request.resource;
-            mission.cargoAmount = quantity;
-
             mission.deadline = deadline;
             mission.priority = 10;
 
@@ -345,25 +407,62 @@ public:
                 };
             }
 
-            auto evaluation = MissionEvaluator::evaluate(
-                galaxy,
-                *ship,
-                mission,
-                request.currentTime,
-                request.weights,
-                request.minimumReliability
-            );
+            for (std::size_t repair = 0;
+                 repair < request.maxCargoRepairs;
+                 ++repair) {
+                mission.cargoAmount = quantity;
 
-            if (evaluation.feasible) {
-                result.mission = mission;
-                result.reason = "Supply mission proposed";
+                auto evaluation = MissionEvaluator::evaluate(
+                    galaxy,
+                    *ship,
+                    mission,
+                    request.currentTime,
+                    request.weights,
+                    request.minimumReliability,
+                    request.routing
+                );
 
-                return result;
+                result.routingStatesExplored +=
+                    evaluation.routingStatesExplored;
+
+                result.routingBudgetExhausted |=
+                    evaluation.routingBudgetExhausted;
+
+                result.routingLabelsPruned |=
+                    evaluation.routingLabelsPruned;
+
+                if (!evaluation.feasible) {
+                    break;
+                }
+
+                double actualRoom = roomAtArrival(
+                    destination,
+                    request,
+                    evaluation.arrivalTime,
+                    incoming
+                );
+
+                if (quantity <= actualRoom) {
+                    result.mission = mission;
+                    result.reason =
+                        "Supply mission proposed";
+
+                    return result;
+                }
+
+                quantity = std::min(
+                    quantity,
+                    actualRoom
+                );
+
+                if (quantity <= 0.0) {
+                    break;
+                }
             }
         }
 
         result.reason =
-            "No feasible supply candidate found";
+            "No feasible supply candidate found within limits";
 
         return result;
     }

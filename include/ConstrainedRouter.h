@@ -22,6 +22,7 @@ struct ConstrainedRouteRequest {
     int destination = 0;
 
     double cargoAmount = 0.0;
+    bool requirePositiveCapacity = false;
     double timeLimit = 0.0;
     double minimumReliability = 0.0;
 
@@ -123,7 +124,7 @@ public:
             !galaxy.hasPlanet(request.destination) ||
             ship.currentLocation != request.origin ||
             !std::isfinite(request.cargoAmount) ||
-            request.cargoAmount <= 0.0 ||
+            request.cargoAmount < 0.0 ||
             !std::isfinite(request.timeLimit) ||
             request.timeLimit < 0.0 ||
             !std::isfinite(request.minimumReliability) ||
@@ -244,11 +245,15 @@ public:
 
             for (const auto& edge :
                  galaxy.getNeighbors(current.node)) {
-                if (!edge.available ||
-    availableRouteCapacity(
-        edge,
-        request.reservedCargo
-    ) < request.cargoAmount ||
+                double freeCapacity = availableRouteCapacity(
+                    edge,
+    request.reservedCargo
+);
+
+if (!edge.available ||
+    freeCapacity < request.cargoAmount ||
+    (request.requirePositiveCapacity &&
+     freeCapacity <= 0.0) ||
     edge.reliability == 0.0) {
     ++result.candidatesPruned;
     continue;
