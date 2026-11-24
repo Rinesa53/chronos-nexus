@@ -54,6 +54,39 @@ const Planet& Galaxy::getPlanet(int id) const {
     return planets.at(id);
 }
 
+const std::unordered_map<int, Planet>& Galaxy::getPlanets() const {
+    return planets;
+}
+
+void Galaxy::replacePlanetResources(
+    int id,
+    std::unordered_map<std::string, double> resources
+) {
+    auto& planet = planets.at(id);
+
+    for (const auto& [resource, amount] : resources) {
+        auto entry = planet.storageCapacity.find(resource);
+
+        double capacity =
+            entry == planet.storageCapacity.end()
+                ? 0.0
+                : entry->second;
+
+        if (resource.empty() ||
+            !std::isfinite(amount) ||
+            amount < 0.0 ||
+            !std::isfinite(capacity) ||
+            capacity < 0.0 ||
+            amount > capacity) {
+            throw std::invalid_argument(
+                "Invalid replacement resource inventory"
+            );
+        }
+    }
+
+    planet.resources.swap(resources);
+}
+
 const std::vector<Route>& Galaxy::getNeighbors(int id) const {
     return adjacency.at(id);
 }

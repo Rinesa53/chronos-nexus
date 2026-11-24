@@ -25,6 +25,13 @@ public:
 
     const Planet& getPlanet(int id) const;
 
+    const std::unordered_map<int, Planet>& getPlanets() const;
+
+void replacePlanetResources(
+    int id,
+    std::unordered_map<std::string, double> resources
+);
+
     const std::vector<Route>& getNeighbors(int id) const;
 
     void setRouteAvailability(int from, int to, bool available);
