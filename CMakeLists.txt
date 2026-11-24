@@ -266,3 +266,27 @@ if(BUILD_TESTING)
         COMMAND preventive_routing_tests
     )
 endif()
+if(BUILD_TESTING)
+    add_executable(resource_simulation_tests
+        tests/ResourceSimulationTests.cpp
+    )
+
+    target_link_libraries(resource_simulation_tests PRIVATE
+        chronos_core
+    )
+
+    if(MSVC)
+        target_compile_options(
+            resource_simulation_tests PRIVATE /UNDEBUG
+        )
+    else()
+        target_compile_options(
+            resource_simulation_tests PRIVATE -UNDEBUG
+        )
+    endif()
+
+    add_test(
+        NAME ResourceSimulationTests
+        COMMAND resource_simulation_tests
+    )
+endif()
