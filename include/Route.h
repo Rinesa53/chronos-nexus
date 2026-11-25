@@ -15,6 +15,7 @@ struct Route {
     double reliability;
 
     bool available = true;
+    bool wormhole = false;
 };
 
 }
