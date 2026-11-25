@@ -36,6 +36,9 @@ struct Facility {
     long long populationImpact = 0;
     double energyImpact = 0.0;
 
+    int technologyImpact = 0;
+int defenseImpact = 0;
+
     void validate(const Galaxy& galaxy) const {
         if (id < 0 ||
             name.empty() ||
