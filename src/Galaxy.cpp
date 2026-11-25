@@ -3,6 +3,7 @@
 
 #include <cmath>
 #include <stdexcept>
+#include <utility>
 
 namespace chronos {
 
@@ -85,6 +86,61 @@ void Galaxy::replacePlanetResources(
     }
 
     planet.resources.swap(resources);
+}
+void Galaxy::validatePlanetState(const Planet& planet) {
+    if (planet.name.empty() ||
+        planet.population < 0 ||
+        planet.technologyLevel < 0 ||
+        planet.defenseLevel < 0 ||
+        planet.strategicImportance < 0 ||
+        !std::isfinite(planet.x) ||
+        !std::isfinite(planet.y)) {
+        throw std::invalid_argument(
+            "Invalid planet state"
+        );
+    }
+
+    auto check = [](const auto& values) {
+        for (const auto& [resource, value] : values) {
+            if (resource.empty() ||
+                !std::isfinite(value) ||
+                value < 0.0) {
+                throw std::invalid_argument(
+                    "Invalid planet resource state"
+                );
+            }
+        }
+    };
+
+    check(planet.resources);
+    check(planet.production);
+    check(planet.consumption);
+    check(planet.storageCapacity);
+
+    for (const auto& [resource, stock] :
+         planet.resources) {
+        auto entry =
+            planet.storageCapacity.find(resource);
+
+        double capacity =
+            entry == planet.storageCapacity.end()
+                ? 0.0
+                : entry->second;
+
+        if (stock > capacity) {
+            throw std::invalid_argument(
+                "Planet stock exceeds storage capacity"
+            );
+        }
+    }
+}
+
+void Galaxy::replacePlanetState(Planet planet) {
+    auto& current = planets.at(planet.id);
+
+    validatePlanetState(planet);
+
+    current = std::move(planet);
 }
 
 const std::vector<Route>& Galaxy::getNeighbors(int id) const {

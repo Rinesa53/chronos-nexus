@@ -32,6 +32,10 @@ void replacePlanetResources(
     std::unordered_map<std::string, double> resources
 );
 
+static void validatePlanetState(const Planet& planet);
+
+void replacePlanetState(Planet planet);
+
     const std::vector<Route>& getNeighbors(int id) const;
 
     void setRouteAvailability(int from, int to, bool available);
