@@ -457,6 +457,13 @@ public:
         const FlightSimulator&
     ) = delete;
 
+    Galaxy& getGalaxy() {
+    return galaxy;
+}
+
+const Galaxy& getGalaxy() const {
+    return galaxy;
+}
     double currentTime() const {
         return clock.currentTime();
     }
