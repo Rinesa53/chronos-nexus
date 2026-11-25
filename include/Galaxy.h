@@ -40,6 +40,8 @@ void replacePlanetState(Planet planet);
 
     void setRouteAvailability(int from, int to, bool available);
 
+    void replaceRoute(const Route& route);
+    
     std::size_t getPlanetCount() const;
     std::size_t getRouteCount() const;
 };

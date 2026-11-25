@@ -4,6 +4,7 @@
 #include <cmath>
 #include <stdexcept>
 #include <utility>
+#include <algorithm>
 
 namespace chronos {
 
@@ -161,7 +162,39 @@ void Galaxy::setRouteAvailability(
 
     throw std::out_of_range("Route not found");
 }
+void Galaxy::replaceRoute(const Route& route) {
+    if (!hasPlanet(route.from) || !hasPlanet(route.to)) {
+        throw std::invalid_argument(
+            "Unknown replacement route endpoint"
+        );
+    }
 
+    auto& neighbors = adjacency.at(route.from);
+
+    auto found = std::find_if(
+        neighbors.begin(),
+        neighbors.end(),
+        [&route](const Route& existing) {
+            return existing.to == route.to;
+        }
+    );
+
+    if (found == neighbors.end()) {
+        throw std::out_of_range(
+            "Replacement route does not exist"
+        );
+    }
+
+    // Validate using the same rules as addRoute.
+    Galaxy validationGraph;
+
+    validationGraph.addPlanet({route.from, "From"});
+    validationGraph.addPlanet({route.to, "To"});
+    validationGraph.addRoute(route);
+
+    // Replace only after validation succeeds.
+    *found = route;
+}
 std::size_t Galaxy::getPlanetCount() const {
     return planets.size();
 }
