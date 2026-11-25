@@ -314,3 +314,27 @@ if(BUILD_TESTING)
         COMMAND flight_simulation_tests
     )
 endif()
+if(BUILD_TESTING)
+    add_executable(construction_tests
+        tests/ConstructionTests.cpp
+    )
+
+    target_link_libraries(construction_tests PRIVATE
+        chronos_core
+    )
+
+    if(MSVC)
+        target_compile_options(
+            construction_tests PRIVATE /UNDEBUG
+        )
+    else()
+        target_compile_options(
+            construction_tests PRIVATE -UNDEBUG
+        )
+    endif()
+
+    add_test(
+        NAME ConstructionTests
+        COMMAND construction_tests
+    )
+endif()
